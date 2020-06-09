@@ -324,6 +324,9 @@ Javascript语言的特殊之处，就在于函数内部可以直接读取全局�
 由于在Javascript语言中，只有函数内部的子函数才能读取局部变量，因此可以把闭包简单理解成"定义在一个函数内部的函数"。
 
 所以，在本质上，闭包就是将函数内部和函数外部连接起来的一座桥梁。
+* 闭包就是函数的局部变量集合，只是这些局部变量在函数返回后会继续存在。
+* 闭包就是就是函数的“堆栈”在函数返回后并不释放，我们也可以理解为这些函数堆栈并不在栈上分配而是在堆上分配
+* 当在一个函数内定义另外一个函数就会产生闭包
 
 ### 四、闭包的用途
 
@@ -364,3 +367,45 @@ Javascript语言的特殊之处，就在于函数内部可以直接读取全局�
 1）由于闭包会使得函数中的变量都被保存在内存中，内存消耗很大，所以不能滥用闭包，否则会造成网页的性能问题，在IE中可能导致内存泄露。解决方法是，在退出函数之前，将不使用的局部变量全部删除。
 
 2）闭包会在父函数外部，改变父函数内部变量的值。所以，如果你把父函数当作对象（object）使用，把闭包当作它的公用方法（Public Method），把内部变量当作它的私有属性（private value），这时一定要小心，不要随便改变父函数内部变量的值。
+### ECMAScript闭包模型
+在ECMAscript的脚本的函数运行时，每个函数关联都有一个执行上下文场景(Execution Context) ，这个执行上下文场景中包含三个部分
+
+文法环境（The LexicalEnvironment）
+变量环境（The VariableEnvironment）
+this绑定
+其中第三点this绑定与闭包无关，不在本文中讨论。文法环境中用于解析函数执行过程使用到的变量标识符。我们可以将文法环境想象成一个对象，该对 象包含了两个重要组件，环境记录(Enviroment Recode)，和外部引用(指针)。环境记录包含包含了函数内部声明的局部变量和参数变量，外部引用指向了外部函数对象的上下文执行场景。全局的上下文 场景中此引用值为NULL。这样的数据结构就构成了一个单向的链表，每个引用都指向外层的上下文场景。
+```
+function greeting(name) {
+     var text = 'Hello ' + name; // local variable
+     // 每次调用时，产生闭包，并返回内部函数对象给调用者
+     return function () { alert(text); }
+}
+var sayHello=greeting( "Closure" );
+sayHello()  // 通过闭包访问到了局部变量text
+```
+例如上面我们例子的闭包模型应该是这样，sayHello函数在最下层，上层是函数greeting，最外层是全局场景。如下图：
+![](http://static.oschina.net/uploads/img/201203/07193845_BKpn.png)
+### 闭包的样列
+例子1:闭包中局部变量是引用而非拷贝
+```
+例子2：多个函数绑定同一个闭包，因为他们定义在同一个函数内。
+
+```
+function setupSomeGlobals() {
+    // Local variable that ends up within closure
+    var num = 666;
+    // Store some references to functions as global variables
+    gAlertNumber = function() { alert(num); }
+    gIncreaseNumber = function() { num++; }
+    gSetNumber = function(x) { num = x; }
+}
+setupSomeGolbals(); // 为三个全局变量赋值
+gAlertNumber(); //666
+gIncreaseNumber();
+gAlertNumber(); // 667
+gSetNumber(12);//
+gAlertNumber();//12
+```
+例子3：当在一个循环中赋值函数时，这些函数将绑定同样的闭包
+
+```
