@@ -388,8 +388,19 @@ sayHello()  // 通过闭包访问到了局部变量text
 ### 闭包的样列
 例子1:闭包中局部变量是引用而非拷贝
 ```
+function say667() {
+    // Local variable that ends up within closure
+    var num = 666;
+    var sayAlert = function() { alert(num); }
+    num++;
+    return sayAlert;
+}
+ 
+var sayAlert = say667();
+sayAlert()
+因此执行结果应该弹出的667而非666。
+```
 例子2：多个函数绑定同一个闭包，因为他们定义在同一个函数内。
-
 ```
 function setupSomeGlobals() {
     // Local variable that ends up within closure
@@ -407,5 +418,112 @@ gSetNumber(12);//
 gAlertNumber();//12
 ```
 例子3：当在一个循环中赋值函数时，这些函数将绑定同样的闭包
-
 ```
+function buildList(list) {
+    var result = [];
+    for (var i = 0; i < list.length; i++) {
+        var item = 'item' + list[i];
+        result.push( function() {alert(item + ' ' + list[i])} );
+    }
+    return result;
+}
+ 
+function testList() {
+    var fnlist = buildList([1,2,3]);
+    // using j only to help prevent confusion - could use i
+    for (var j = 0; j < fnlist.length; j++) {
+        fnlist[j]();
+    }
+}
+testList的执行结果是弹出item3 undefined窗口三次，因为这三个函数绑定了同一个闭包，而且item的值为最后计算的结果，但是当i跳出循环时i值为4，所以list[4]的结果为undefined.
+```
+例子4：外部函数所有局部变量都在闭包内，即使这个变量声明在内部函数定义之后。
+```
+function sayAlice() {
+    var sayAlert = function() { alert(alice); }
+    // Local variable that ends up within closure
+    var alice = 'Hello Alice';
+    return sayAlert;
+}
+var helloAlice=sayAlice();
+helloAlice();
+执行结果是弹出”Hello Alice”的窗口。即使局部变量声明在函数sayAlert之后，局部变量仍然可以被访问到。
+```
+例子5：每次函数调用的时候创建一个新的闭包
+```
+function newClosure(someNum, someRef) {
+    // Local variables that end up within closure
+    var num = someNum;
+    var anArray = [1,2,3];
+    var ref = someRef;
+    return function(x) {
+        num += x;
+        anArray.push(num);
+        alert('num: ' + num +
+        '\nanArray ' + anArray.toString() +
+        '\nref.someVar ' + ref.someVar);
+    }
+}
+closure1=newClosure(40,{someVar:'closure 1'});
+closure2=newClosure(1000,{someVar:'closure 2'});
+ 
+closure1(5); // num:45 anArray[1,2,3,45] ref:'someVar closure1'
+closure2(-10);// num:990 anArray[1,2,3,990] ref:'someVar closure2'
+```
+Singleton 单件：
+```
+var singleton = function () {
+    var privateVariable;
+    function privateFunction(x) {
+        ...privateVariable...
+    }
+ 
+    return {
+        firstMethod: function (a, b) {
+            ...privateVariable...
+        },
+        secondMethod: function (c) {
+            ...privateFunction()...
+        }
+    };
+}();
+```
+这个单件通过闭包来实现。通过闭包完成了私有的成员和方法的封装。匿名主函数返回一个对象。对象包含了两个方法，方法1可以方法私有变量，方法2访 问内部私有函数。需要注意的地方是匿名主函数结束的地方的’()’，如果没有这个’()’就不能产生单件。因为匿名函数只能返回了唯一的对象，而且不能被 其他地方调用。这个就是利用闭包产生单件的方法。
+### 闭包的微观世界
+如果要更加深入的了解闭包以及函数a和嵌套函数b的关系，我们需要引入另外几个概念：函数的执行环境(excution context)、活动对象(call object)、作用域(scope)、作用域链(scope chain)。以函数a从定义到执行的过程为例阐述这几个概念。
+```
+function a() {
+  var i = 0;
+  function b() {
+    alert(++i);
+  }
+  return b;
+}
+var c = a();
+c();
+```
+* 当定义函数a的时候，js解释器会将函数a的作用域链(scope chain)设置为定义a时a所在的“环境”，如果a是一个全局函数，则scope chain中只有window对象。
+* 当执行函数a的时候，a会进入相应的执行环境(excution context)。
+* 在创建执行环境的过程中，首先会为a添加一个scope属性，即a的作用域，其值就为第1步中的scope chain。即a.scope=a的作用域链。
+* 然后执行环境会创建一个活动对象(call object)。活动对象也是一个拥有属性的对象，但它不具有原型而且不能通过JavaScript代码直接访问。创建完活动对象后，把活动对象添加到a的作用域链的最顶端。此时a的作用域链包含了两个对象：a的活动对象和window对象。
+* 下一步是在活动对象上添加一个arguments属性，它保存着调用函数a时所传递的参数。
+* 最后把所有函数a的形参和内部的函数b的引用也添加到a的活动对象上。在这一步中，完成了函数b的的定义，因此如同第3步，函数b的作用域链被设置为b所被定义的环境，即a的作用域。
+到此，整个函数a从定义到执行的步骤就完成了。此时a返回函数b的引用给c，又函数b的作用域链包含了对函数a的活动对象的引用，也就是说b可以访问到a中定义的所有变量和函数。函数b被c引用，函数b又依赖函数a，因此函数a在返回后不会被GC回收。
+
+当函数b执行的时候亦会像以上步骤一样。因此，执行时b的作用域链包含了3个对象：b的活动对象、a的活动对象和window对象，如下图所示：
+![](https://www.jb51.net/upload/20090527123259248.jpg)
+小结，本段中提到了两个重要的词语：函数的定义与执行。文中提到函数的作用域是在定义函数时候就已经确定，而不是在执行的时候确定（参看步骤1和3）。用一段代码来说明这个问题：
+```
+function f(x) {
+  var g = function () { return x; }
+  return g;
+}
+var h = f(1);
+alert(h());
+这段代码中变量h指向了f中的那个匿名函数(由g返回)。
+```
+假设函数h的作用域是在执行alert(h())确定的，那么此时h的作用域链是：h的活动对象->alert的活动对象->window对象。
+假设函数h的作用域实在定义时确定的，就是说h指向的那个匿名函数在定义的时候就已经确定了作用域。那么在执行的时候，h的作用域链为：h的活动对象->f的活动对象->window对象。
+如果第一种假设成立，那输出值就是undefined；如果第二种假设成立，输出值则为1。
+
+运行结果证明了第2个假设是正确的，说明函数的作用域确实是在定义这个函数的时候就已经确定了。
